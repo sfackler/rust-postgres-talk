@@ -19,16 +19,157 @@
 
 \section{Background}
 \subsection{PostgreSQL}
+
+\begin{frame}{What's PostgreSQL?}
+	\includegraphics[height=2cm]{postgres_logo.pdf}
+
+	\begin{quote}
+		PostgreSQL is a powerful, open source object-relational database system. It has more than 15 years of active development and a proven architecture that has earned it a strong reputation for reliability, data integrity, and correctness.
+	\end{quote}
+\end{frame}
+
 \subsection{Rust-Postgres}
 
 \section{Overview}
 \subsection{Usage}
+
+\begin{frame}[fragile]{Connecting}
+	Connect with a standard psql-style URI:
+	\begin{minted}{rust}
+use postgres::{PostgresConnection, NoSsl};
+let url = "postgresql://sfackler@localhost:15410/mydb";
+let conn = try!(
+        PostgresConnection::connect(url, &NoSsl));
+	\end{minted}	
+\end{frame}
+
+\begin{frame}[fragile]{Connecting}
+	Unix sockets are supported as well:
+	\begin{minted}{rust}
+use postgres::{PostgresConnection, NoSsl};
+let url = "postgresql://sfackler@%2Frun%2Fpostgres/mydb";
+let conn = try!(
+        PostgresConnection::connect(url, &NoSsl));
+	\end{minted}	
+\end{frame}
+
+\begin{frame}[fragile]{Connecting}
+	Alternatively, pass a `PostgresConnectParams` struct:
+	\begin{minted}{rust}
+use postgres::{PostgresConnection, NoSsl,
+               PostgresConnectParams, TargetUnix};
+let params = PostgresConnectParams {
+    target: TargetUnix(Path::new("/run/postgres")),
+    port: Some(1234),
+    .....
+};
+let conn = try!(
+        PostgresConnection::connect(params, &NoSsl));
+	\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Statement Preparation}
+    Queries must first be \emph{prepared} before they can be executed.
+
+    They may be parameterized. Parameters are denoted by \verb!$n!, and are
+    1-indexed.
+    \begin{minted}{rust}
+let query = "SELECT name, height
+             FROM people
+             WHERE age < $1";
+let stmt = try!(conn.prepare(query));
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Execution}
+    \begin{minted}{rust}
+let query = "UPDATE users SET name = $1
+             WHERE age = $2";
+let stmt = try!(conn.prepare(query));
+let rows_updated = stmt.execute([&"Steven", &Some(24i32)]);
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Querying}
+    \begin{minted}{rust}
+let query = "SELECT name, age FROM users
+             WHERE age < $1";
+let stmt = try!(conn.prepare(query));
+for row in try!(stmt.query([&18i32])) {
+    let name: String = row.get(0u);
+    let age: Option<i32> = row.get("age");
+    println!("{} is {}", name, age);
+}
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Parameterization}
+    \begin{center}
+        Use it. Seriously.
+    \end{center}
+\end{frame}
+
+\begin{frame}[fragile]{Parameterization}
+    \begin{minted}{rust}
+fn update_grade(conn: &PostgresConnection,
+                name: &str, grade: f32)
+                -> PostgresResult<()> {
+    let query = format!("UPDATE students SET grade = {}
+                         WHERE name = '{}'",
+                        grade, name);
+    try!(stmt.batch_execute(query.as_slice()));
+    Ok(())
+}
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Parameterization}
+    \begin{minted}{rust}
+let name = "Robert'); DROP TABLE Students;--";
+let grade = 100f32;
+update_grade(&conn, name, grade);
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Parameterization}
+    \begin{minted}{rust}
+fn update_grade(conn: &PostgresConnection,
+                name: &str, grade: f32)
+                -> PostgresResult<Student> {
+    let query = "UPDATE students SET grade = $1
+                 WHERE name = $1";
+    let stmt = try!(conn.prepare(query));
+    try!(stmt.update([&grade, &name]));
+    Ok(())
+}
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Transactions}
+    Transactions are managed by the \verb!PostgresTransaction! object:
+    \begin{minted}{rust}
+let trans = try!(conn.transaction());
+let stmt = trans.prepare(...);
+....
+
+if something_bad_happened {
+    trans.set_rollback();
+}
+
+drop(trans); // COMMIT / ROLLBACK here
+    \end{minted}
+\end{frame}
+
 \subsection{Design}
+
+\begin{frame}{Strict Typing}
+    \begin{enumerate}
+        \item SQL drivers tend to be 
+    \end{enumerate}
+\end{frame}
+
 \subsection{Macros}
 
-
-
-\begin{frame}
-\end{frame}
+\section{Future}
 
 \end{document}
