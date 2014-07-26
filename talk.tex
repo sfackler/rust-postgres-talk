@@ -54,7 +54,7 @@ let conn = try!(
 \end{frame}
 
 \begin{frame}[fragile]{Connecting}
-	Alternatively, pass a `PostgresConnectParams` struct:
+	Alternatively, pass a `PostgresConnectParams' struct:
 	\begin{minted}{rust}
 use postgres::{PostgresConnection, NoSsl,
                PostgresConnectParams, TargetUnix};
@@ -82,15 +82,20 @@ let stmt = try!(conn.prepare(query));
 \end{frame}
 
 \begin{frame}[fragile]{Execution}
+    The \verb!execute! method takes a slice of values to bind to the query
+    parameters and returns the number of rows modified.
     \begin{minted}{rust}
 let query = "UPDATE users SET name = $1
              WHERE age = $2";
 let stmt = try!(conn.prepare(query));
-let rows_updated = stmt.execute([&"Steven", &Some(24i32)]);
+let rows_updated = try!(stmt.execute(
+        [&"Steven", &Some(24i32)]));
     \end{minted}
 \end{frame}
 
 \begin{frame}[fragile]{Querying}
+    \verb!query! is similar to \verb!execute! but it returns an iterator over
+    the rows returned by a query. Columns may be accessed by index or name.
     \begin{minted}{rust}
 let query = "SELECT name, age FROM users
              WHERE age < $1";
@@ -149,27 +154,69 @@ fn update_grade(conn: &PostgresConnection,
     Transactions are managed by the \verb!PostgresTransaction! object:
     \begin{minted}{rust}
 let trans = try!(conn.transaction());
-let stmt = trans.prepare(...);
+let stmt = try!(trans.prepare(...));
 ....
 
-if something_bad_happened {
-    trans.set_rollback();
+if the_coast_is_clear {
+    trans.set_commit();
 }
 
-drop(trans); // COMMIT / ROLLBACK here
+try!(trans.finish()); // COMMIT / ROLLBACK here
     \end{minted}
 \end{frame}
 
 \subsection{Design}
 
+\begin{frame}{RAII and Lifetimes are Awesome}
+\end{frame}
+
 \begin{frame}{Strict Typing}
     \begin{enumerate}
-        \item SQL drivers tend to be 
+        \item Rust-Postgres differs from many drivers in 
     \end{enumerate}
+\end{frame}
+
+\begin{frame}{Extensibility}
+    Postgres allows for extensions which define new types and operations.
+
+    Rust-Postgres
+\end{frame}
+
+\begin{frame}[fragile]{Extensibility}
+    All conversions are done through two traits
+    \begin{minted}{rust}
+pub trait ToSql {
+    fn to_sql(&self, ty: &PostgresType)
+              -> PostgresResult<(Format,
+                                 Option<Vec<u8>>)>;
+} 
+
+pub trait FromSql {
+    fn from_sql(y: &PostgresType,
+                raw: &Option<Vec<u8>>)
+                -> PostgresResult<Self>;
+}
+    \end{minted}
 \end{frame}
 
 \subsection{Macros}
 
 \section{Future}
+
+\begin{frame}{What's Missing}
+    Rust-Postgres defines the basics, but much of the infrastructure on top
+    is still missing.
+    \begin{itemize}
+        \item Connection Pool - There is a pool in Rust-Postgres but it's no
+        where near sufficient.
+        \item ORM - Syntax extensions could allow for a very nice ORM system.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{That's It!}
+    \begin{center}
+        Questions?
+    \end{center}
+\end{frame}
 
 \end{document}
