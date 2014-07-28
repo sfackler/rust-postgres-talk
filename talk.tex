@@ -182,7 +182,7 @@ try!(trans.finish()); // COMMIT / ROLLBACK here
     Rust-Postgres
 \end{frame}
 
-\begin{frame}[fragile]{Extensibility}
+\begin{frame}[fragile]{Type Conversion}
     All conversions are done through two traits
     \begin{minted}{rust}
 pub trait ToSql {
@@ -200,6 +200,51 @@ pub trait FromSql {
 \end{frame}
 
 \subsection{Macros}
+
+\begin{frame}[fragile]{Compile Time Checks}
+    Compile time checks are awesome, but SQL opens up a series of issues that
+    won't be discovered until runtime.
+    \begin{itemize}
+        \item Invalid syntax \mint{sql}|SELECT * FORM foo|
+        \item Parameter count mismatch
+        \begin{minted}{rust}
+try!(conn.execute("UPDATE foo SET a = $1
+                        WHERE b = $2",
+                  [&1i32]));
+        \end{minted}
+        \item Schema mismatch \mint{sql}|SELECT nmae FROM users|
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Syntax Extensions to the Rescue}
+    Link against PostgreSQL's query parser, and have it do the heavy lifting!
+    \begin{minted}{rust}
+let query = sql!("SELECT * FORM foo");
+    \end{minted}
+    \begin{verbatim}
+test.rs:8:18: 8:35 error: Invalid syntax at
+    position 10: syntax error at or near "FORM"
+test.rs:8     let query = sql!("SELECT * FORM foo");
+                               ^~~~~~~~~~~~~~~~~~~
+    \end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]{Syntax Extensions to the Rescue}
+    \begin{minted}{rust}
+try!(execute!(conn,
+              "UPDATE foo SET a = $1
+                WHERE b = $2",
+              &1i32));
+    \end{minted}
+    \begin{verbatim}
+test.rs:7:1: 10:23 error: Expected 2 query parameters
+        but got 1
+test.rs:7 try!(execute!(conn,
+test.rs:8               "UPDATE foo SET a = $1
+test.rs:9                 WHERE b = $2",
+test.rs:10               &1i32));
+    \end{verbatim}
+\end{frame}
 
 \section{Future}
 
