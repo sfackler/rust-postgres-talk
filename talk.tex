@@ -24,7 +24,7 @@
 	\includegraphics[height=2cm]{postgres_logo.pdf}
 
 	\begin{quote}
-		PostgreSQL is a powerful, open source object-relational database system. It has more than 15 years of active development and a proven architecture that has earned it a strong reputation for reliability, data integrity, and correctness.
+		``PostgreSQL is a powerful, open source object-relational database system. It has more than 15 years of active development and a proven architecture that has earned it a strong reputation for reliability, data integrity, and correctness.''
 	\end{quote}
 \end{frame}
 
@@ -167,19 +167,42 @@ try!(trans.finish()); // COMMIT / ROLLBACK here
 
 \subsection{Design}
 
-\begin{frame}{RAII and Lifetimes are Awesome}
+\begin{frame}[fragile]{RAII and Lifetimes are Awesome}
+    Statically guarantee that resources are cleaned up in the right order
+    without needing to resort to reference counting or garbage collection.
 \end{frame}
 
-\begin{frame}{Strict Typing}
-    \begin{enumerate}
-        \item Rust-Postgres differs from many drivers in 
-    \end{enumerate}
+\begin{frame}[fragile]{Strict Typing}
+    Like Rust itself, Rust-Postgres won't perform implicit type conversions. A
+    Postgres type is only convertable to an ``equivalent'' Rust type and vice
+    versa.
+    \begin{minted}{sql}
+CREATE TABLE foo (id INT PRIMARY KEY, bar BIGINT) 
+    \end{minted}
+    \begin{minted}{rust}
+let stmt = try!conn.prepare("SELECT id FROM foo"));
+for row in try!(stmt.query([])) {
+    row.get::<i32>(0u); // ok
+    row.get::<Option<i32>>(0u); // ok
+    row.get::<uint>(0u); // not ok
+}
+
+let stmt = try!(conn.prepare("UPDATE foo SET bar = $1"));
+try!(stmt.execute([&1i64])); // ok
+try!(stmt.execute([&Some(2i64)])); // ok
+try!(stmt.execute([&"1"])); // not ok
+    \end{minted}
 \end{frame}
 
 \begin{frame}{Extensibility}
     Postgres allows for extensions which define new types and operations.
+    \begin{itemize}
+        \item PostGIS
+        \item HStore
+    \end{itemize}
 
-    Rust-Postgres
+    Rust-Postgres provides an extendible API for conversions to and from
+    Postgres values.
 \end{frame}
 
 \begin{frame}[fragile]{Type Conversion}
@@ -192,7 +215,7 @@ pub trait ToSql {
 } 
 
 pub trait FromSql {
-    fn from_sql(y: &PostgresType,
+    fn from_sql(ty: &PostgresType,
                 raw: &Option<Vec<u8>>)
                 -> PostgresResult<Self>;
 }
@@ -217,8 +240,12 @@ try!(conn.execute("UPDATE foo SET a = $1
 \end{frame}
 
 \begin{frame}[fragile]{Syntax Extensions to the Rescue}
-    Link against PostgreSQL's query parser, and have it do the heavy lifting!
+    Link against PostgreSQL's query parser and have it do the heavy lifting!
     \begin{minted}{rust}
+#[phase(plugin)]
+extern crate postgres_macros;
+
+
 let query = sql!("SELECT * FORM foo");
     \end{minted}
     \begin{verbatim}
@@ -231,6 +258,9 @@ test.rs:8     let query = sql!("SELECT * FORM foo");
 
 \begin{frame}[fragile]{Syntax Extensions to the Rescue}
     \begin{minted}{rust}
+#[phase(plugin)]
+extern crate postgres_macros;
+
 try!(execute!(conn,
               "UPDATE foo SET a = $1
                 WHERE b = $2",
@@ -254,7 +284,7 @@ test.rs:10               &1i32));
     \begin{itemize}
         \item Connection Pool - There is a pool in Rust-Postgres but it's no
         where near sufficient.
-        \item ORM - Syntax extensions could allow for a very nice ORM system.
+        \item ORM - Syntax extensions could allow for an interesting ORM system.
     \end{itemize}
 \end{frame}
 
