@@ -2,6 +2,22 @@
 
 \usepackage{minted}
 
+\AtBeginSection[]{
+    \begin{frame}
+        \begin{center}
+            \usebeamerfont{title}\secname
+        \end{center}
+    \end{frame}
+}
+
+\AtBeginSubsection[]{
+    \begin{frame}
+        \begin{center}
+            \usebeamerfont{subtitle}\subsecname
+        \end{center}
+    \end{frame}
+}
+
 \title{Rust-Postgres}
 \subtitle{An idiomatic, native Postgres driver}
 \author[sfackler]{Steven Fackler - sfackler}
@@ -18,9 +34,8 @@
 \end{frame}
 
 \section{Background}
-\subsection{PostgreSQL}
 
-\begin{frame}{What's PostgreSQL?}
+\begin{frame}{PostgreSQL}
 	\includegraphics[height=2cm]{postgres_logo.pdf}
 
 	\begin{quote}
@@ -28,7 +43,12 @@
 	\end{quote}
 \end{frame}
 
-\subsection{Rust-Postgres}
+\begin{frame}{Rust-Postgres}
+    \begin{itemize}
+        \item Started just over a year ago as ``rust-sql'' - experiments with a unified SQL API using libsqlite and libpq bindings as test cases
+        \item Quickly dropped the unified API ideas and SQLite implementation, then switched from a libpq wrapper to a native implementation of the Postgres protocol.
+    \end{itemize}
+\end{frame}
 
 \section{Overview}
 \subsection{Usage}
@@ -86,7 +106,7 @@ let stmt = try!(conn.prepare(query));
     parameters and returns the number of rows modified.
     \begin{minted}{rust}
 let query = "UPDATE users SET name = $1
-             WHERE age = $2";
+                WHERE age = $2";
 let stmt = try!(conn.prepare(query));
 let rows_updated = try!(stmt.execute(
         [&"Steven", &Some(24i32)]));
@@ -98,7 +118,7 @@ let rows_updated = try!(stmt.execute(
     the rows returned by a query. Columns may be accessed by index or name.
     \begin{minted}{rust}
 let query = "SELECT name, age FROM users
-             WHERE age < $1";
+                WHERE age < $1";
 let stmt = try!(conn.prepare(query));
 for row in try!(stmt.query([&18i32])) {
     let name: String = row.get(0u);
@@ -120,9 +140,9 @@ fn update_grade(conn: &PostgresConnection,
                 name: &str, grade: f32)
                 -> PostgresResult<()> {
     let query = format!("UPDATE students SET grade = {}
-                         WHERE name = '{}'",
+                            WHERE name = '{}'",
                         grade, name);
-    try!(stmt.batch_execute(query.as_slice()));
+    try!(conn.batch_execute(query.as_slice()));
     Ok(())
 }
     \end{minted}
@@ -142,9 +162,9 @@ fn update_grade(conn: &PostgresConnection,
                 name: &str, grade: f32)
                 -> PostgresResult<Student> {
     let query = "UPDATE students SET grade = $1
-                 WHERE name = $1";
-    let stmt = try!(conn.prepare(query));
-    try!(stmt.update([&grade, &name]));
+                 WHERE name = $2";
+    let stmt = try!(conn.execute(query,
+            [&grade, &name]));
     Ok(())
 }
     \end{minted}
@@ -165,11 +185,36 @@ try!(trans.finish()); // COMMIT / ROLLBACK here
     \end{minted}
 \end{frame}
 
+\begin{frame}[fragile]{Error Handling}
+    \begin{minted}{sql}
+CREATE TABLE foo (id SERIAL PRIMARY KEY, name VARCHAR,
+    CONSTRAINT uk_foo_name UNIQUE (name))
+    \end{minted}
+    \begin{minted}{rust}
+match conn.execute("INSERT INTO foo (name) VALUES ($1)",
+                   [&name]) {
+    Err(PgDbError(PostgresDbError {
+        code: UniqueViolation,
+        constraint: Some(ref c)
+        ..
+    })) if c.as_slice() == "uk_foo_name" =>
+        // Duplicate username
+    _ => ...
+}
+    \end{minted}
+\end{frame}
+
 \subsection{Design}
 
-\begin{frame}[fragile]{RAII and Lifetimes are Awesome}
-    Statically guarantee that resources are cleaned up in the right order
-    without needing to resort to reference counting or garbage collection.
+\begin{frame}[fragile]{High Level}
+    \begin{itemize}
+        \item Manage resources via RAII objects.
+        \item Borrowed references ensure that resources are cleaned up in the right order without the need for reference counting or garbage collection.
+        \item Avoid failure in most cases - propogate errors via \verb!Result!.
+        \begin{itemize}
+            \item Removal of failure throughout the library cut the size of the rlib by ~50\%!
+        \end{itemize}
+    \end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]{Strict Typing}
