@@ -69,7 +69,7 @@ let conn = try!(
 	Unix sockets are supported as well:
 	\begin{rustcode}
 use postgres::{PostgresConnection, NoSsl};
-let url = "postgresql://name@%2Frun%2Fpostgres/mydb";
+let url = "postgresql://name@%2Frun%2Fpostgres";
 let conn = try!(
         PostgresConnection::connect(url, &NoSsl));
 	\end{rustcode}	
@@ -176,6 +176,14 @@ match conn.execute(query, [&name]) {
     \end{rustcode}
 \end{frame}
 
+\begin{frame}{And More!}
+    \begin{itemize}
+        \item Query cancellation
+        \item Lazy queries
+        \item Asynchronous notifications
+    \end{itemize}
+\end{frame}
+
 \subsection{Design}
 
 \begin{frame}[fragile]{High Level}
@@ -184,7 +192,7 @@ match conn.execute(query, [&name]) {
         \item Borrowed references ensure that resources are cleaned up in the right order without the need for reference counting or garbage collection.
         \item Avoid failure in most cases - propogate errors via \verb!Result!.
         \begin{itemize}
-            \item Removal of failure throughout the library cut the size of the rlib by ~50\%!
+            \item Removal of failure throughout the library cut the size of the rlib by $\sim50\%$!
         \end{itemize}
     \end{itemize}
 \end{frame}
