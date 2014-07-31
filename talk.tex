@@ -2,6 +2,9 @@
 
 \usepackage{minted}
 
+\newminted{rust}{bgcolor=bg}
+\newminted{sql}{bgcolor=bg}
+
 \AtBeginSection[]{
     \begin{frame}
         \begin{center}
@@ -24,6 +27,7 @@
 \date{July 31, 2014}
 
 \begin{document}
+\definecolor{bg}{rgb}{.95,.95,.95}
 
 \begin{frame}
 \titlepage
@@ -45,8 +49,9 @@
 
 \begin{frame}{Rust-Postgres}
     \begin{itemize}
-        \item Started just over a year ago as ``rust-sql'' - experiments with a unified SQL API using libsqlite and libpq bindings as test cases
-        \item Quickly dropped the unified API ideas and SQLite implementation, then switched from a libpq wrapper to a native implementation of the Postgres protocol.
+        \item Started just over a year ago as ``rust-sql''.
+        \item libsqlite and libpq wrappers with an eye towards a common API.
+        \item Quickly renamed to ``rust-postgres'' and shifted focus to a native Postgres driver.
     \end{itemize}
 \end{frame}
 
@@ -55,27 +60,24 @@
 
 \begin{frame}[fragile]{Connecting}
 	Connect with a standard psql-style URI:
-	\begin{minted}{rust}
+	\begin{rustcode}
 use postgres::{PostgresConnection, NoSsl};
-let url = "postgresql://sfackler@localhost:15410/mydb";
+let url = "postgresql://name@localhost:15410/mydb";
 let conn = try!(
         PostgresConnection::connect(url, &NoSsl));
-	\end{minted}	
-\end{frame}
-
-\begin{frame}[fragile]{Connecting}
+	\end{rustcode}	
 	Unix sockets are supported as well:
-	\begin{minted}{rust}
+	\begin{rustcode}
 use postgres::{PostgresConnection, NoSsl};
-let url = "postgresql://sfackler@%2Frun%2Fpostgres/mydb";
+let url = "postgresql://name@%2Frun%2Fpostgres/mydb";
 let conn = try!(
         PostgresConnection::connect(url, &NoSsl));
-	\end{minted}	
+	\end{rustcode}	
 \end{frame}
 
 \begin{frame}[fragile]{Connecting}
 	Alternatively, pass a `PostgresConnectParams' struct:
-	\begin{minted}{rust}
+	\begin{rustcode}
 use postgres::{PostgresConnection, NoSsl,
                PostgresConnectParams, TargetUnix};
 let params = PostgresConnectParams {
@@ -85,7 +87,7 @@ let params = PostgresConnectParams {
 };
 let conn = try!(
         PostgresConnection::connect(params, &NoSsl));
-	\end{minted}
+	\end{rustcode}
 \end{frame}
 
 \begin{frame}[fragile]{Statement Preparation}
@@ -93,30 +95,30 @@ let conn = try!(
 
     They may be parameterized. Parameters are denoted by \verb!$n!, and are
     1-indexed.
-    \begin{minted}{rust}
+    \begin{rustcode}
 let query = "SELECT name, height
              FROM people
              WHERE age < $1";
 let stmt = try!(conn.prepare(query));
-    \end{minted}
+    \end{rustcode}
 \end{frame}
 
 \begin{frame}[fragile]{Execution}
     The \verb!execute! method takes a slice of values to bind to the query
     parameters and returns the number of rows modified.
-    \begin{minted}{rust}
+    \begin{rustcode}
 let query = "UPDATE users SET name = $1
                 WHERE age = $2";
 let stmt = try!(conn.prepare(query));
-let rows_updated = try!(stmt.execute(
-        [&"Steven", &Some(24i32)]));
-    \end{minted}
+let rows_updated = try!(
+        stmt.execute([&"Steven", &Some(24i32)]));
+    \end{rustcode}
 \end{frame}
 
 \begin{frame}[fragile]{Querying}
     \verb!query! is similar to \verb!execute! but it returns an iterator over
     the rows returned by a query. Columns may be accessed by index or name.
-    \begin{minted}{rust}
+    \begin{rustcode}
 let query = "SELECT name, age FROM users
                 WHERE age < $1";
 let stmt = try!(conn.prepare(query));
@@ -125,54 +127,22 @@ for row in try!(stmt.query([&18i32])) {
     let age: Option<i32> = row.get("age");
     println!("{} is {}", name, age);
 }
-    \end{minted}
+    \end{rustcode}
 \end{frame}
 
 \begin{frame}[fragile]{Parameterization}
     \begin{center}
         Use it. Seriously.
+
+        \vspace{.75cm}
+
+        \href{http://xkcd.com/327/}{\includegraphics[height=4cm]{bobby_tables.jpg}}
     \end{center}
-\end{frame}
-
-\begin{frame}[fragile]{Parameterization}
-    \begin{minted}{rust}
-fn update_grade(conn: &PostgresConnection,
-                name: &str, grade: f32)
-                -> PostgresResult<()> {
-    let query = format!("UPDATE students SET grade = {}
-                            WHERE name = '{}'",
-                        grade, name);
-    try!(conn.batch_execute(query.as_slice()));
-    Ok(())
-}
-    \end{minted}
-\end{frame}
-
-\begin{frame}[fragile]{Parameterization}
-    \begin{minted}{rust}
-let name = "Robert'); DROP TABLE Students;--";
-let grade = 100f32;
-update_grade(&conn, name, grade);
-    \end{minted}
-\end{frame}
-
-\begin{frame}[fragile]{Parameterization}
-    \begin{minted}{rust}
-fn update_grade(conn: &PostgresConnection,
-                name: &str, grade: f32)
-                -> PostgresResult<Student> {
-    let query = "UPDATE students SET grade = $1
-                 WHERE name = $2";
-    let stmt = try!(conn.execute(query,
-            [&grade, &name]));
-    Ok(())
-}
-    \end{minted}
 \end{frame}
 
 \begin{frame}[fragile]{Transactions}
     Transactions are managed by the \verb!PostgresTransaction! object:
-    \begin{minted}{rust}
+    \begin{rustcode}
 let trans = try!(conn.transaction());
 let stmt = try!(trans.prepare(...));
 ....
@@ -182,26 +152,28 @@ if the_coast_is_clear {
 }
 
 try!(trans.finish()); // COMMIT / ROLLBACK here
-    \end{minted}
+    \end{rustcode}
 \end{frame}
 
 \begin{frame}[fragile]{Error Handling}
-    \begin{minted}{sql}
-CREATE TABLE foo (id SERIAL PRIMARY KEY, name VARCHAR,
+    \begin{sqlcode}
+CREATE TABLE foo (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR,
     CONSTRAINT uk_foo_name UNIQUE (name))
-    \end{minted}
-    \begin{minted}{rust}
-match conn.execute("INSERT INTO foo (name) VALUES ($1)",
-                   [&name]) {
+    \end{sqlcode}
+    \begin{rustcode}
+let query = "INSERT INTO foo (name) VALUES ($1)";
+match conn.execute(query, [&name]) {
     Err(PgDbError(PostgresDbError {
         code: UniqueViolation,
-        constraint: Some(ref c)
+        constraint: Some(ref c),
         ..
     })) if c.as_slice() == "uk_foo_name" =>
         // Duplicate username
     _ => ...
 }
-    \end{minted}
+    \end{rustcode}
 \end{frame}
 
 \subsection{Design}
@@ -221,10 +193,10 @@ match conn.execute("INSERT INTO foo (name) VALUES ($1)",
     Like Rust itself, Rust-Postgres won't perform implicit type conversions. A
     Postgres type is only convertable to an ``equivalent'' Rust type and vice
     versa.
-    \begin{minted}{sql}
+    \begin{sqlcode}
 CREATE TABLE foo (id INT PRIMARY KEY, bar BIGINT) 
-    \end{minted}
-    \begin{minted}{rust}
+    \end{sqlcode}
+    \begin{rustcode}
 let stmt = try!conn.prepare("SELECT id FROM foo"));
 for row in try!(stmt.query([])) {
     row.get::<i32>(0u); // ok
@@ -232,11 +204,12 @@ for row in try!(stmt.query([])) {
     row.get::<uint>(0u); // not ok
 }
 
-let stmt = try!(conn.prepare("UPDATE foo SET bar = $1"));
+let stmt = try!(
+        conn.prepare("UPDATE foo SET bar = $1"));
 try!(stmt.execute([&1i64])); // ok
-try!(stmt.execute([&Some(2i64)])); // ok
+try!(stmt.execute([&None::<i64>])); // ok
 try!(stmt.execute([&"1"])); // not ok
-    \end{minted}
+    \end{rustcode}
 \end{frame}
 
 \begin{frame}{Extensibility}
@@ -244,6 +217,7 @@ try!(stmt.execute([&"1"])); // not ok
     \begin{itemize}
         \item PostGIS
         \item HStore
+        \item etc
     \end{itemize}
 
     Rust-Postgres provides an extendible API for conversions to and from
@@ -252,7 +226,7 @@ try!(stmt.execute([&"1"])); // not ok
 
 \begin{frame}[fragile]{Type Conversion}
     All conversions are done through two traits
-    \begin{minted}{rust}
+    \begin{rustcode}
 pub trait ToSql {
     fn to_sql(&self, ty: &PostgresType)
               -> PostgresResult<(Format,
@@ -264,7 +238,7 @@ pub trait FromSql {
                 raw: &Option<Vec<u8>>)
                 -> PostgresResult<Self>;
 }
-    \end{minted}
+    \end{rustcode}
 \end{frame}
 
 \subsection{Macros}
@@ -273,26 +247,31 @@ pub trait FromSql {
     Compile time checks are awesome, but SQL opens up a series of issues that
     won't be discovered until runtime.
     \begin{itemize}
-        \item Invalid syntax \mint{sql}|SELECT * FORM foo|
+        \item Invalid syntax
+        \begin{sqlcode}
+SELECT * FORM foo 
+        \end{sqlcode}
         \item Parameter count mismatch
-        \begin{minted}{rust}
+        \begin{rustcode}
 try!(conn.execute("UPDATE foo SET a = $1
                         WHERE b = $2",
                   [&1i32]));
-        \end{minted}
-        \item Schema mismatch \mint{sql}|SELECT nmae FROM users|
+        \end{rustcode}
+        \item Schema mismatch
+        \begin{sqlcode}
+SELECT nmae FROM users
+        \end{sqlcode}
     \end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]{Syntax Extensions to the Rescue}
     Link against PostgreSQL's query parser and have it do the heavy lifting!
-    \begin{minted}{rust}
+    \begin{rustcode}
 #[phase(plugin)]
 extern crate postgres_macros;
 
-
 let query = sql!("SELECT * FORM foo");
-    \end{minted}
+    \end{rustcode}
     \begin{verbatim}
 test.rs:8:18: 8:35 error: Invalid syntax at
     position 10: syntax error at or near "FORM"
@@ -302,7 +281,7 @@ test.rs:8     let query = sql!("SELECT * FORM foo");
 \end{frame}
 
 \begin{frame}[fragile]{Syntax Extensions to the Rescue}
-    \begin{minted}{rust}
+    \begin{rustcode}
 #[phase(plugin)]
 extern crate postgres_macros;
 
@@ -310,7 +289,7 @@ try!(execute!(conn,
               "UPDATE foo SET a = $1
                 WHERE b = $2",
               &1i32));
-    \end{minted}
+    \end{rustcode}
     \begin{verbatim}
 test.rs:7:1: 10:23 error: Expected 2 query parameters
         but got 1
@@ -327,15 +306,18 @@ test.rs:10               &1i32));
     Rust-Postgres defines the basics, but much of the infrastructure on top
     is still missing.
     \begin{itemize}
-        \item Connection Pool - There is a pool in Rust-Postgres but it's no
-        where near sufficient.
-        \item ORM - Syntax extensions could allow for an interesting ORM system.
+        \item Connection Pool - There is a pool in Rust-Postgres but it's nowhere near sufficient. \href{https://github.com/sfackler/rust-postgres/issues/44}{sfackler/rust-postgres\#44}
+        \item ORM - Syntax extensions could allow for an interesting ORM system. \href{https://github.com/sfackler/rust-postgres/issues/47}{sfackler/rust-postgres\#47}
     \end{itemize}
 \end{frame}
 
 \begin{frame}{That's It!}
     \begin{center}
         Questions?
+
+        \vspace{10mm}
+
+        \url{https://github.com/sfackler/rust-postgres}
     \end{center}
 \end{frame}
 
